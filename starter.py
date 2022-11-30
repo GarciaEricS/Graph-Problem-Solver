@@ -177,44 +177,6 @@ def cost(G: nx.graph, vertex: int, new_team: int, b: np.array = None, b_norm: in
         if G.nodes[neighbor]["team"] != new_team:
             new_Cw += G[vertex][neighbor]["weight"]
     return new_Cp + new_Cw
-
-def solve(G: nx.Graph):
-    # Assign a team to v with G.nodes[v]['team'] = team_id
-    # Access the team of v with team_id = G.nodes[v]['team']
-    G_intermediate = G
-    num_nodes = len(G.nodes)
-    num_teams = 2
- 
-    # Partition first half to team 0
-    for u in range(num_nodes//2):
-        G.nodes[u]['team'] = 0
- 
-    # Partition first half to team 1
-    for v in range(num_nodes//2, num_nodes):
-        G.nodes[v]['team'] = 1
- 
-    unmarked = set(list(G.nodes))
-    gains = []
-    while len(unmarked) != 0:
-        best_cost = float('inf')
-        swap_pair = None
-        for u in unmarked:
-            for team in range(num_teams):
-                cost_if_swapped = cost(G_intermediate, u, team)
-                if cost_if_swapped < best_cost:
-                    swap_pair = (u, team, cost_if_swapped)
-                    best_cost = cost_if_swapped
-        G_intermediate = swap(G_intermediate, swap_pair[0], swap_pair[1])
-        unmarked.remove(swap_pair[0])
-        gains.append(swap_pair)
- 
-    smallest_swap_score = min(gains, key=lambda x: x[2])
- 
-    for v, team, swap_score in gains:
-        G = swap(G, v, team)
-        if swap_score == smallest_swap_score:
-            break
-    return G
  
 def swap(G: nx.graph, v: int, team: int):
     G.nodes[v]["team"] = team

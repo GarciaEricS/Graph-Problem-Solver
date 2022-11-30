@@ -8,6 +8,7 @@ import math
 from pathlib import Path
 from tqdm.auto import tqdm
 import tarfile
+from collections import defaultdict
 
 # Scoring constants
 MAX_WEIGHT = 1000
@@ -100,31 +101,6 @@ def score(G: nx.Graph, separated=False):
     if separated:
         return C_w, K_COEFFICIENT * math.exp(K_EXP * k), math.exp(B_EXP * b)
     return C_w + K_COEFFICIENT * math.exp(K_EXP * k) + math.exp(B_EXP * b)
-
-def get_b_and_b_norm(G: nx.graph):
-    output = [G.nodes[v]['team'] for v in range(G.number_of_nodes())]
-    teams, counts = np.unique(output, return_counts=True)
-
-    k = np.max(teams)
-    b = counts / G.number_of_nodes() - 1 / k
-    b_norm = np.linalg.norm(b, 2)
-    return b, b_norm
-    
-def cost(G: nx.graph, vertex: int, new_team: int, b: np.array = None, b_norm: int = None):
-    if b is None or b_norm is None:
-        b, b_norm = get_b_and_b_norm(G)
-    old_team = G.nodes[vertex]["team"]
-    b_i = b[old_team]
-    b_j = b[new_team]
-    V = G.number_of_nodes()
-    new_Cp = math.exp(70 * (b_norm ** 2 - b_i ** 2 - b_j ** 2 + (b_i - 1 / V) ** 2 + (b_j + 1 / V) ** 2) ** (1/2))
-    new_Cw = 0
-    for neighbor in G.neighbors(vertex):
-        if G.nodes[neighbor]["team"] == old_team:
-            new_Cw += G[vertex][neighbor]["weight"]
-        if G.nodes[neighbor]["team"] == new_team:
-            new_Cw -= G[vertex][neighbor]["weight"]
-    return new_Cp + new_Cw
     
 def visualize(G: nx.Graph):
     output = G.nodes(data='team', default=0)
@@ -178,3 +154,71 @@ def tar(out_dir, overwrite=False):
         'File already exists and overwrite set to False. Move file or set overwrite to True to proceed.'
     with tarfile.open(path, 'w') as fp:
         fp.add(out_dir)
+
+def get_b_and_b_norm(G: nx.graph):
+    output = [G.nodes[v]['team'] for v in range(G.number_of_nodes())]
+    teams, counts = np.unique(output, return_counts=True)
+
+    k = np.max(teams)
+    b = counts / G.number_of_nodes() - 1 / k
+    b_norm = np.linalg.norm(b, 2)
+    return b, b_norm
+    
+def cost(G: nx.graph, vertex: int, new_team: int, b: np.array = None, b_norm: int = None):
+    if b is None or b_norm is None:
+        b, b_norm = get_b_and_b_norm(G)
+    old_team = G.nodes[vertex]["team"]
+    b_i = b[old_team]
+    b_j = b[new_team]
+    V = G.number_of_nodes()
+    new_Cp = math.exp(70 * (b_norm ** 2 - b_i ** 2 - b_j ** 2 + (b_i - 1 / V) ** 2 + (b_j + 1 / V) ** 2) ** (1/2))
+    new_Cw = 0
+    for neighbor in G.neighbors(vertex):
+        if G.nodes[neighbor]["team"] == old_team:
+            new_Cw += G[vertex][neighbor]["weight"]
+        if G.nodes[neighbor]["team"] == new_team:
+            new_Cw -= G[vertex][neighbor]["weight"]
+    return new_Cp + new_Cw
+
+def solve(G: nx.Graph):
+    # Assign a team to v with G.nodes[v]['team'] = team_id
+    # Access the team of v with team_id = G.nodes[v]['team']
+    G_intermediate = G
+    num_nodes = len(G.nodes)
+    num_teams = 2
+ 
+    # Partition first half to team 0
+    for u in range(num_nodes//2):
+        G.nodes[u]['team'] = 0
+ 
+    # Partition first half to team 1
+    for v in range(num_nodes//2, num_nodes):
+        G.nodes[v]['team'] = 1
+ 
+    unmarked = set(list(G.nodes))
+    gains = []
+    while len(unmarked) != 0:
+        best_cost = float('inf')
+        swap_pair = None
+        for u in unmarked:
+            for team in range(num_teams):
+                cost_if_swapped = cost(G_intermediate, u, team)
+                if cost_if_swapped < best_cost:
+                    swap_pair = (u, team, cost_if_swapped)
+                    best_cost = cost_if_swapped
+        G_intermediate = swap(G_intermediate, swap_pair[0], swap_pair[1])
+        unmarked.remove(swap_pair[0])
+        gains.append(swap_pair)
+ 
+    smallest_swap_score = min(gains, key=lambda x: x[2])
+ 
+    for v, team, swap_score in gains:
+        swap(G, v, team)
+        if swap_score == smallest_swap_score:
+            break
+
+    return G
+ 
+def swap(G: nx.graph, v: int, team: int):
+    G.nodes[v]["team"] = team
+    return G

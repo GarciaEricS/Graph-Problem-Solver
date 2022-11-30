@@ -155,29 +155,3 @@ def tar(out_dir, overwrite=False):
     with tarfile.open(path, 'w') as fp:
         fp.add(out_dir)
 
-def get_b_and_b_norm(G: nx.graph):
-    output = [G.nodes[v]['team'] for v in range(G.number_of_nodes())]
-    teams, counts = np.unique(output, return_counts=True)
-
-    k = np.max(teams)
-    b = counts / G.number_of_nodes() - 1 / k
-    b_norm = np.linalg.norm(b, 2)
-    return b, b_norm
-    
-def cost(G: nx.graph, vertex: int, new_team: int, b: np.array = None, b_norm: int = None):
-    if b is None or b_norm is None:
-        b, b_norm = get_b_and_b_norm(G)
-    old_team = G.nodes[vertex]["team"]
-    b_i = b[old_team]
-    b_j = b[new_team]
-    V = G.number_of_nodes()
-    new_Cp = math.exp(70 * (b_norm ** 2 - b_i ** 2 - b_j ** 2 + (b_i - 1 / V) ** 2 + (b_j + 1 / V) ** 2) ** (1/2))
-    new_Cw = 0
-    for neighbor in G.neighbors(vertex):
-        if G.nodes[neighbor]["team"] != new_team:
-            new_Cw += G[vertex][neighbor]["weight"]
-    return new_Cp + new_Cw
- 
-def swap(G: nx.graph, v: int, team: int):
-    G.nodes[v]["team"] = team
-    return G

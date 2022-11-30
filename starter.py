@@ -174,10 +174,8 @@ def cost(G: nx.graph, vertex: int, new_team: int, b: np.array = None, b_norm: in
     new_Cp = math.exp(70 * (b_norm ** 2 - b_i ** 2 - b_j ** 2 + (b_i - 1 / V) ** 2 + (b_j + 1 / V) ** 2) ** (1/2))
     new_Cw = 0
     for neighbor in G.neighbors(vertex):
-        if G.nodes[neighbor]["team"] == old_team:
+        if G.nodes[neighbor]["team"] != new_team:
             new_Cw += G[vertex][neighbor]["weight"]
-        if G.nodes[neighbor]["team"] == new_team:
-            new_Cw -= G[vertex][neighbor]["weight"]
     return new_Cp + new_Cw
 
 def solve(G: nx.Graph):
@@ -213,10 +211,9 @@ def solve(G: nx.Graph):
     smallest_swap_score = min(gains, key=lambda x: x[2])
  
     for v, team, swap_score in gains:
-        swap(G, v, team)
+        G = swap(G, v, team)
         if swap_score == smallest_swap_score:
             break
-
     return G
  
 def swap(G: nx.graph, v: int, team: int):

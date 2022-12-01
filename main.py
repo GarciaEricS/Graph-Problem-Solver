@@ -99,9 +99,6 @@ def get_b_and_b_norm(G: nx.graph):
     return b, b_norm
  
 def swap(G: nx.graph, v: int, team: int):
-    old_team = G.nodes[v]["team"]
-    #if old_team == team:
-    #    print("swapped")
     G.nodes[v]["team"] = team
     return G
 

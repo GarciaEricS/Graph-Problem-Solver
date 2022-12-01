@@ -49,44 +49,13 @@ def cost(G: nx.graph, vertex: int, new_team: int, b: np.array = None, b_norm: in
                 new_weight_score += G[vertex][neighbor]["weight"]
             if G.nodes[neighbor]["team"] == old_team:
                 new_weight_score -= G[vertex][neighbor]["weight"]
-    return new_weight_score, teams_score, new_balance_score, b, b_norm
+    return new_weight_score + teams_score + new_balance_score
 
 def solve(G: nx.Graph):
     solve_naive(G) # Will be replaced with approximation
     local_search(G)
 
 def local_search(G: nx.graph):
-    teams = list(get_teams_and_counts(G)[0]) # This does not work
-    teams = [1, 2]
-    i = 0
-    curr_weight_score, curr_team_score, curr_balance_score = score(G, separated=True)
-    curr_b, curr_b_norm = get_b_and_b_norm(G)
-    while True:
-        old_score = score(G)
-        print(f"{i=}, {old_score=}")
-        unmarked = set(list(G.nodes))
-        while len(unmarked) != 0:
-            best_cost = float('inf')
-            for u in unmarked:
-                for team in teams:
-                    weight_score, team_score, balance_score, b, b_norm = cost(G, u, team, None, None, curr_weight_score, curr_team_score, curr_balance_score)
-                    weight_score, team_score, balance_score, b, b_norm = cost(G, u, team, None, None, None, None, None)
-                    cost_if_swapped = weight_score + team_score + balance_score
-                    if cost_if_swapped < best_cost:
-                        curr_weight_score = weight_score
-                        curr_team_score = team_score
-                        curr_balance_score = balance_score
-                        curr_b = b
-                        curr_b_norm = b_norm
-                        best_cost = cost_if_swapped
-            swap(G, u, team)
-            unmarked.remove(u)
-        if best_cost >= old_score:
-            break
-        i += 1
-    return G
-
-def local_search_annealed(G: nx.graph):
     teams = list(get_teams_and_counts(G)[0]) # This does not work
     teams = [1, 2]
     i = 0
@@ -103,11 +72,11 @@ def local_search_annealed(G: nx.graph):
                     if cost_if_swapped < best_cost:
                         swap_pair = (u, team)
                         best_cost = cost_if_swapped
-            
+
             u, team = swap_pair
             swap(G, u, team)
             unmarked.remove(u)
-        if best_cost == old_score:
+        if score(G) == old_score:
             break
         i += 1
     return G

@@ -14,12 +14,7 @@ def main():
     print("naive score: ", score_naive)
     print("better by ", score_naive - calculated_score)
 
-def cost(G: nx.graph, vertex: int, new_team: int, b: np.array = None, b_norm: int = None, weight_score: int = None, teams_score: int = None, balance_score: int = None):
-    # print(b)
-    # print(b_norm)    
-
-
-
+def cost(G: nx.graph, vertex: int, new_team: int, weight_score: int = None, teams_score: int = None, balance_score: int = None,  b: np.array = None, b_norm: int = None, ):
     if b is None or b_norm is None:
         b, b_norm = get_b_and_b_norm(G)
     if weight_score is None or teams_score is None or balance_score is None:
@@ -32,12 +27,6 @@ def cost(G: nx.graph, vertex: int, new_team: int, b: np.array = None, b_norm: in
     b[old_team - 1] -= 1 / V
     b[new_team - 1] += 1 / V
 
-    #swap(G, vertex, new_team)
-    #new_b, new_b_norm = get_b_and_b_norm(G)
-    #swap(G, vertex, old_team)
-    #print("b", b)
-    #print("new b", new_b)
-
     new_weight_score = weight_score
     if old_team == new_team:
         new_balance_score = balance_score
@@ -49,7 +38,7 @@ def cost(G: nx.graph, vertex: int, new_team: int, b: np.array = None, b_norm: in
                 new_weight_score += G[vertex][neighbor]["weight"]
             if G.nodes[neighbor]["team"] == old_team:
                 new_weight_score -= G[vertex][neighbor]["weight"]
-    return new_weight_score + teams_score + new_balance_score
+    return new_weight_score, teams_score, new_balance_score
 
 def solve(G: nx.Graph):
     solve_naive(G) # Will be replaced with approximation
@@ -68,11 +57,11 @@ def local_search(G: nx.graph):
             swap_pair = None
             for u in unmarked:
                 for team in teams:
-                    cost_if_swapped = cost(G, u, team)
+                    weight_score, teams_score, balance_score = cost(G, u, team)
+                    cost_if_swapped = weight_score + teams_score + balance_score
                     if cost_if_swapped < best_cost:
                         swap_pair = (u, team)
                         best_cost = cost_if_swapped
-
             u, team = swap_pair
             swap(G, u, team)
             unmarked.remove(u)

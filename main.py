@@ -1,8 +1,8 @@
 from starter import *
 
 def main():
-    G = read_input('inputs\\small5.in')
-    G_naive = read_input('inputs\\small5.in')
+    G = read_input('inputs\\small1.in')
+    G_naive = read_input('inputs\\small1.in')
     solve(G)
     validate_output(G)
     calculated_score = score(G)
@@ -45,40 +45,29 @@ def solve(G: nx.Graph):
     local_search(G)
 
 def local_search(G: nx.graph):
-    G_intermediate = G.copy()
     teams = list(get_teams_and_counts(G)[0]) # This does not work
     teams = [1, 2]
-    unmarked = set(list(G.nodes))
-    gains = []
-    while len(unmarked) != 0:
-        best_cost = float('inf')
-        swap_pair = None
-        for u in unmarked:
-            old_team = G.nodes[u]["team"]
-            for team in teams:
-                if team == old_team:
-                    continue
-                cost_if_swapped = cost(G_intermediate, u, team)
-                if cost_if_swapped < best_cost:
-                    swap_pair = (u, team, cost_if_swapped)
-                    best_cost = cost_if_swapped
-        
-        swap(G_intermediate, swap_pair[0], swap_pair[1])
-        unmarked.remove(swap_pair[0])
-        gains.append(swap_pair)
-
-    print(gains)
-
-    smallest_swap_score = min(gains, key=lambda x: x[2])[2]
-
-    #print(gains)
-    #print(smallest_swap_score)
-
-    for v, team, swap_score in gains:
-        swap(G, v, team)
-        #print("swapped")
-        if swap_score == smallest_swap_score:
+    i = 0
+    while True:
+        old_score = score(G)
+        print(f"{i=}, {old_score=}")
+        unmarked = set(list(G.nodes))
+        while len(unmarked) != 0:
+            best_cost = float('inf')
+            swap_pair = None
+            for u in unmarked:
+                for team in teams:
+                    cost_if_swapped = cost(G, u, team)
+                    if cost_if_swapped < best_cost:
+                        swap_pair = (u, team)
+                        best_cost = cost_if_swapped
+            
+            u, team = swap_pair
+            swap(G, u, team)
+            unmarked.remove(u)
+        if score(G) == old_score:
             break
+        i += 1
     return G
 
 def solve_naive(G: nx.graph):

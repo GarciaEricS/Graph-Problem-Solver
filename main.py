@@ -1,4 +1,5 @@
 from starter import *
+from sklearn.cluster import spectral_clustering
 K_VALUE = 4
 
 def main():
@@ -9,7 +10,7 @@ def main():
     calculated_score = score(G)
     # visualize(G)
     #solve_naive(G_naive)
-    randomSolve(G_naive, K_VALUE)
+    spectralSolve(G_naive, K_VALUE)
     validate_output(G_naive)
     score_naive = score(G_naive)
     print("score: ", calculated_score)
@@ -40,18 +41,19 @@ def cost(G: nx.graph, vertex: int, new_team: int, weight_score: int = None, team
                 new_weight_score += G[vertex][neighbor]["weight"]
             if G.nodes[neighbor]["team"] == old_team:
                 new_weight_score -= G[vertex][neighbor]["weight"]
-    return new_weight_score, teams_score, new_balance_score
+    return new_weight_score, teams_score, new_balance_score, b, b_norm
 
 def solve(G: nx.Graph):
     #solve_naive(G) # Will be replaced with approximation
-    randomSolve(G, K_VALUE)
+    spectralSolve(G, K_VALUE)
     local_search(G)
 
 def local_search(G: nx.graph):
     teams = list(map(int, get_teams_and_counts(G)[0]))
     i = 0
+    curr_weight_score, curr_teams_score, curr_balance_score = score(G, separated=True)
+    curr_b, curr_b_norm = get_b_and_b_norm(G)
     while True:
-        curr_weight_score, curr_teams_score, curr_balance_score = score(G, separated=True)
         old_score = curr_weight_score + curr_teams_score + curr_balance_score
         print(f"{i=}, {old_score=}")
         unmarked = set(list(G.nodes))
@@ -62,15 +64,15 @@ def local_search(G: nx.graph):
             swap_pair = None
             for u in unmarked:
                 for team in teams:
-                    weight_score, teams_score, balance_score = cost(G, u, team, curr_weight_score, curr_teams_score, curr_balance_score)
+                    weight_score, teams_score, balance_score, b, b_norm = cost(G, u, team, curr_weight_score, curr_teams_score, curr_balance_score, curr_b, curr_b_norm)
                     cost_if_swapped = weight_score + teams_score + balance_score
                     if cost_if_swapped < best_cost:
-                        swap_pair = (u, team, weight_score, teams_score, balance_score)
+                        swap_pair = (u, team, weight_score, teams_score, balance_score, b, b_norm)
                         best_cost = cost_if_swapped
-            u, team, curr_weight_score, curr_teams_score, curr_balance_score = swap_pair
+            u, team, curr_weight_score, curr_teams_score, curr_balance_score, curr_b, curr_b_norm = swap_pair
             swap(G, u, team)
             unmarked.remove(u)
-        if score(G) == old_score:
+        if curr_weight_score + curr_teams_score + curr_balance_score == old_score:
             break
         i += 1
     return G
@@ -90,6 +92,15 @@ def randomSolve(G: nx.Graph, k: int):
     for u in G.nodes:
         team = np.random.randint(1, k)
         G.nodes[u]["team"] = team
+    
+def spectralSolve(G: nx.Graph, k: int):
+    adjMatrix = nx.to_numpy_array(G)
+    beta = 10
+    eps = 1e-6
+    adjMatrix = np.exp(-beta * adjMatrix / adjMatrix.std()) + eps
+    teams = spectral_clustering(adjMatrix, n_clusters=k, eigen_solver="arpack", eigen_tol=1e-7, assign_labels="discretize")
+    for u in G.nodes:
+        G.nodes[u]["team"] = int(teams[u]) + 1
     
 def get_teams_and_counts(G: nx.graph):
     output = [G.nodes[v]['team'] for v in range(G.number_of_nodes())]

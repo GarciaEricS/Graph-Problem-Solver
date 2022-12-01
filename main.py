@@ -15,11 +15,8 @@ def main():
     print("better by ", score_naive - calculated_score)
 
 def cost(G: nx.graph, vertex: int, new_team: int, b: np.array = None, b_norm: int = None, weight_score: int = None, teams_score: int = None, balance_score: int = None):
-    old_team = G.nodes[vertex]["team"]
-    swap(G, vertex, new_team)
-    new_cost = score(G)
-    swap(G, vertex, old_team)
-    return new_cost
+    # print(b)
+    # print(b_norm)    
 
 
 
@@ -31,20 +28,65 @@ def cost(G: nx.graph, vertex: int, new_team: int, b: np.array = None, b_norm: in
     b_i = b[old_team - 1]
     b_j = b[new_team - 1]
     V = G.number_of_nodes()
-    new_balance_score = math.exp(70 * (b_norm ** 2 - b_i ** 2 - b_j ** 2 + (b_i - 1 / V) ** 2 + (b_j + 1 / V) ** 2) ** (1/2))
+    
+    b[old_team - 1] -= 1 / V
+    b[new_team - 1] += 1 / V
+
+    #swap(G, vertex, new_team)
+    #new_b, new_b_norm = get_b_and_b_norm(G)
+    #swap(G, vertex, old_team)
+    #print("b", b)
+    #print("new b", new_b)
+
     new_weight_score = weight_score
-    for neighbor in G.neighbors(vertex):
-        if G.nodes[neighbor]["team"] == new_team:
-            new_weight_score -= G[vertex][neighbor]["weight"]
-        if G.nodes[neighbor]["team"] == old_team:
-            new_weight_score += G[vertex][neighbor]["weight"]
-    return new_weight_score + teams_score + new_balance_score
+    if old_team == new_team:
+        new_balance_score = balance_score
+    else:
+        b_norm = np.sqrt(b_norm ** 2 - b_i ** 2 - b_j ** 2 + (b_i - 1 / V) ** 2 + (b_j + 1 / V) ** 2)
+        new_balance_score = math.exp(70 * b_norm)
+        for neighbor in G.neighbors(vertex):
+            if G.nodes[neighbor]["team"] == new_team:
+                new_weight_score += G[vertex][neighbor]["weight"]
+            if G.nodes[neighbor]["team"] == old_team:
+                new_weight_score -= G[vertex][neighbor]["weight"]
+    return new_weight_score, teams_score, new_balance_score, b, b_norm
 
 def solve(G: nx.Graph):
     solve_naive(G) # Will be replaced with approximation
     local_search(G)
 
 def local_search(G: nx.graph):
+    teams = list(get_teams_and_counts(G)[0]) # This does not work
+    teams = [1, 2]
+    i = 0
+    curr_weight_score, curr_team_score, curr_balance_score = score(G, separated=True)
+    curr_b, curr_b_norm = get_b_and_b_norm(G)
+    while True:
+        old_score = score(G)
+        print(f"{i=}, {old_score=}")
+        unmarked = set(list(G.nodes))
+        while len(unmarked) != 0:
+            best_cost = float('inf')
+            for u in unmarked:
+                for team in teams:
+                    weight_score, team_score, balance_score, b, b_norm = cost(G, u, team, None, None, curr_weight_score, curr_team_score, curr_balance_score)
+                    weight_score, team_score, balance_score, b, b_norm = cost(G, u, team, None, None, None, None, None)
+                    cost_if_swapped = weight_score + team_score + balance_score
+                    if cost_if_swapped < best_cost:
+                        curr_weight_score = weight_score
+                        curr_team_score = team_score
+                        curr_balance_score = balance_score
+                        curr_b = b
+                        curr_b_norm = b_norm
+                        best_cost = cost_if_swapped
+            swap(G, u, team)
+            unmarked.remove(u)
+        if best_cost >= old_score:
+            break
+        i += 1
+    return G
+
+def local_search_annealed(G: nx.graph):
     teams = list(get_teams_and_counts(G)[0]) # This does not work
     teams = [1, 2]
     i = 0
@@ -65,7 +107,7 @@ def local_search(G: nx.graph):
             u, team = swap_pair
             swap(G, u, team)
             unmarked.remove(u)
-        if score(G) == old_score:
+        if best_cost == old_score:
             break
         i += 1
     return G
@@ -83,14 +125,18 @@ def solve_naive(G: nx.graph):
     
 def get_teams_and_counts(G: nx.graph):
     output = [G.nodes[v]['team'] for v in range(G.number_of_nodes())]
-    teams, counts = np.unique(output, return_counts=True)
-    return teams, counts
+    k = np.max(output)
+    teams = list(range(1, k+1))
+    counts = [0] * k
+    for team in output:
+        counts[team - 1] += 1
+    return np.array(teams), np.array(counts)
 
 def get_b_and_b_norm(G: nx.graph):
     teams, counts = get_teams_and_counts(G)
 
     k = np.max(teams)
-    b = counts / G.number_of_nodes() - 1 / k
+    b = (counts / G.number_of_nodes()) - 1 / k
     b_norm = np.linalg.norm(b, 2)
     return b, b_norm
  

@@ -1,13 +1,15 @@
 from starter import *
+K_VALUE = 4
 
 def main():
-    G = read_input('inputs\\medium1.in')
-    G_naive = read_input('inputs\\medium1.in')
+    G = read_input('inputs\\large1.in')
+    G_naive = read_input('inputs\\large1.in')
     solve(G)
     validate_output(G)
     calculated_score = score(G)
     # visualize(G)
-    solve_naive(G_naive)
+    #solve_naive(G_naive)
+    randomSolve(G_naive, K_VALUE)
     validate_output(G_naive)
     score_naive = score(G_naive)
     print("score: ", calculated_score)
@@ -41,7 +43,8 @@ def cost(G: nx.graph, vertex: int, new_team: int, weight_score: int = None, team
     return new_weight_score, teams_score, new_balance_score
 
 def solve(G: nx.Graph):
-    solve_naive(G) # Will be replaced with approximation
+    #solve_naive(G) # Will be replaced with approximation
+    randomSolve(G, K_VALUE)
     local_search(G)
 
 def local_search(G: nx.graph):
@@ -52,7 +55,9 @@ def local_search(G: nx.graph):
         old_score = curr_weight_score + curr_teams_score + curr_balance_score
         print(f"{i=}, {old_score=}")
         unmarked = set(list(G.nodes))
+        size = G.number_of_nodes()
         while len(unmarked) != 0:
+            print(f"{size - len(unmarked)}/{size}")
             best_cost = float('inf')
             swap_pair = None
             for u in unmarked:
@@ -80,6 +85,11 @@ def solve_naive(G: nx.graph):
     # Partition first half to team 2
     for v in range(num_nodes//2, num_nodes):
         G.nodes[v]['team'] = 2
+
+def randomSolve(G: nx.Graph, k: int):
+    for u in G.nodes:
+        team = np.random.randint(1, k)
+        G.nodes[u]["team"] = team
     
 def get_teams_and_counts(G: nx.graph):
     output = [G.nodes[v]['team'] for v in range(G.number_of_nodes())]

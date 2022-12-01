@@ -1,10 +1,10 @@
 from starter import *
 from sklearn.cluster import spectral_clustering
-K_VALUE = 4
+K_VALUE = 2
 
 def main():
-    G = read_input('inputs\\large1.in')
-    G_naive = read_input('inputs\\large1.in')
+    G = read_input('inputs\\small1.in')
+    G_naive = read_input('inputs\\small1.in')
     solve(G)
     validate_output(G)
     calculated_score = score(G)
@@ -34,7 +34,10 @@ def cost(G: nx.graph, vertex: int, new_team: int, weight_score: int = None, team
     if old_team == new_team:
         new_balance_score = balance_score
     else:
-        b_norm = np.sqrt(b_norm ** 2 - b_i ** 2 - b_j ** 2 + (b_i - 1 / V) ** 2 + (b_j + 1 / V) ** 2)
+        inside = b_norm ** 2 - b_i ** 2 - b_j ** 2 + (b_i - 1 / V) ** 2 + (b_j + 1 / V) ** 2
+        if inside < 0:
+            inside = 0
+        b_norm = np.sqrt(inside)
         new_balance_score = math.exp(70 * b_norm)
         for neighbor in G.neighbors(vertex):
             if G.nodes[neighbor]["team"] == new_team:
@@ -64,7 +67,7 @@ def local_search(G: nx.graph):
             swap_pair = None
             for u in unmarked:
                 for team in teams:
-                    weight_score, teams_score, balance_score, b, b_norm = cost(G, u, team, curr_weight_score, curr_teams_score, curr_balance_score, curr_b, curr_b_norm)
+                    weight_score, teams_score, balance_score, b, b_norm = cost(G, u, team, curr_weight_score, curr_teams_score, curr_balance_score)#, curr_b, curr_b_norm)
                     cost_if_swapped = weight_score + teams_score + balance_score
                     if cost_if_swapped < best_cost:
                         swap_pair = (u, team, weight_score, teams_score, balance_score, b, b_norm)

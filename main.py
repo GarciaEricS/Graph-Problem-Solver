@@ -1,22 +1,28 @@
 from starter import *
 from sklearn.cluster import spectral_clustering
 import multiprocessing as mp
-
-K_VALUE = 4
+import os
 
 def main():
-    run_all_parallel()
-    tar("outputs")
+    k_values = range(8, 17)
+    for k in k_values:
+        if not os.path.exists(f"outputs{k}/"):
+            os.makedirs(f"outputs{k}/")
+        run_all_parallel(k)
 
-def run_parallel(in_file: str):
-    run(solve, "inputs/" + in_file, "outputs/" + in_file[:-len(".in")] + ".out", True)
+def run_parallel(pair):
+    in_file, k = pair
+    run(solve(k), "inputs/" + in_file, f"outputs{k}/" + in_file[:-len(".in")] + ".out", overwrite=False)
 
-def run_all_parallel():
-    input_files = tqdm([x for x in os.listdir("inputs") if x.endswith('.in')])
+def run_all_parallel(k: int):
+    input_files = [x for x in os.listdir("inputs") if x.endswith('.in')]
+    inputs_with_k = tqdm([(f, k) for f in input_files])
     threads = mp.cpu_count()
+    print("k:", k)
     print("Threads:", threads)
     with mp.Pool(threads - 1) as p:
-        p.map(run_parallel, input_files)
+        p.map(run_parallel, inputs_with_k)
+    tar(f"outputs{k}")
 
 def cost(G: nx.graph, vertex: int, new_team: int, weight_score: int = None, teams_score: int = None, balance_score: int = None,  b: np.array = None, b_norm: int = None, ):
     if b is None or b_norm is None:
@@ -47,10 +53,11 @@ def cost(G: nx.graph, vertex: int, new_team: int, weight_score: int = None, team
                 new_weight_score -= G[vertex][neighbor]["weight"]
     return new_weight_score, teams_score, new_balance_score, b, b_norm
 
-def solve(G: nx.Graph):
-    #solve_naive(G) # Will be replaced with approximation
-    spectralSolve(G, K_VALUE)
-    local_search(G)
+def solve(k: int):
+    def inner(G: nx.Graph):
+        spectralSolve(G, k)
+        local_search(G)
+    return inner
 
 def local_search(G: nx.graph):
     teams = list(map(int, get_teams_and_counts(G)[0]))

@@ -1,8 +1,8 @@
 from starter import *
 
 def main():
-    G = read_input('small1.in')
-    G_naive = read_input('small1.in')
+    G = read_input('inputs\\small5.in')
+    G_naive = read_input('inputs\\small5.in')
     solve(G)
     validate_output(G)
     calculated_score = score(G)
@@ -45,7 +45,7 @@ def solve(G: nx.Graph):
     local_search(G)
 
 def local_search(G: nx.graph):
-    G_intermediate = G
+    G_intermediate = G.copy()
     teams = list(get_teams_and_counts(G)[0]) # This does not work
     teams = [1, 2]
     unmarked = set(list(G.nodes))
@@ -62,9 +62,12 @@ def local_search(G: nx.graph):
                 if cost_if_swapped < best_cost:
                     swap_pair = (u, team, cost_if_swapped)
                     best_cost = cost_if_swapped
+        
         swap(G_intermediate, swap_pair[0], swap_pair[1])
         unmarked.remove(swap_pair[0])
         gains.append(swap_pair)
+
+    print(gains)
 
     smallest_swap_score = min(gains, key=lambda x: x[2])[2]
 

@@ -1,8 +1,8 @@
 from starter import *
 
 def main():
-    G = read_input('inputs\\small1.in')
-    G_naive = read_input('inputs\\small1.in')
+    G = read_input('inputs\\medium1.in')
+    G_naive = read_input('inputs\\medium1.in')
     solve(G)
     validate_output(G)
     calculated_score = score(G)
@@ -45,11 +45,11 @@ def solve(G: nx.Graph):
     local_search(G)
 
 def local_search(G: nx.graph):
-    teams = list(get_teams_and_counts(G)[0]) # This does not work
-    teams = [1, 2]
+    teams = list(map(int, get_teams_and_counts(G)[0]))
     i = 0
     while True:
-        old_score = score(G)
+        curr_weight_score, curr_teams_score, curr_balance_score = score(G, separated=True)
+        old_score = curr_weight_score + curr_teams_score + curr_balance_score
         print(f"{i=}, {old_score=}")
         unmarked = set(list(G.nodes))
         while len(unmarked) != 0:
@@ -57,12 +57,12 @@ def local_search(G: nx.graph):
             swap_pair = None
             for u in unmarked:
                 for team in teams:
-                    weight_score, teams_score, balance_score = cost(G, u, team)
+                    weight_score, teams_score, balance_score = cost(G, u, team, curr_weight_score, curr_teams_score, curr_balance_score)
                     cost_if_swapped = weight_score + teams_score + balance_score
                     if cost_if_swapped < best_cost:
-                        swap_pair = (u, team)
+                        swap_pair = (u, team, weight_score, teams_score, balance_score)
                         best_cost = cost_if_swapped
-            u, team = swap_pair
+            u, team, curr_weight_score, curr_teams_score, curr_balance_score = swap_pair
             swap(G, u, team)
             unmarked.remove(u)
         if score(G) == old_score:

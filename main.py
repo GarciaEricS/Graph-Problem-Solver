@@ -1,21 +1,22 @@
 from starter import *
 from sklearn.cluster import spectral_clustering
+import multiprocessing as mp
+
 K_VALUE = 4
 
 def main():
-    G = read_input('inputs\\large1.in')
-    G_naive = read_input('inputs\\large1.in')
-    solve(G)
-    validate_output(G)
-    calculated_score = score(G)
-    # visualize(G)
-    #solve_naive(G_naive)
-    spectralSolve(G_naive, K_VALUE)
-    validate_output(G_naive)
-    score_naive = score(G_naive)
-    print("score: ", calculated_score)
-    print("naive score: ", score_naive)
-    print("better by ", score_naive - calculated_score)
+    run_all_parallel()
+    tar("outputs")
+
+def run_parallel(in_file: str):
+    run(solve, "inputs/" + in_file, "outputs/" + in_file[:-len(".in")] + ".out", True)
+
+def run_all_parallel():
+    input_files = tqdm([x for x in os.listdir("inputs") if x.endswith('.in')])
+    threads = mp.cpu_count()
+    print("Threads:", threads)
+    with mp.Pool(threads - 1) as p:
+        p.map(run_parallel, input_files)
 
 def cost(G: nx.graph, vertex: int, new_team: int, weight_score: int = None, teams_score: int = None, balance_score: int = None,  b: np.array = None, b_norm: int = None, ):
     if b is None or b_norm is None:
@@ -55,11 +56,11 @@ def local_search(G: nx.graph):
     curr_b, curr_b_norm = get_b_and_b_norm(G)
     while True:
         old_score = curr_weight_score + curr_teams_score + curr_balance_score
-        print(f"{i=}, {old_score=}")
+        # print(f"{i=}, {old_score=}")
         unmarked = set(list(G.nodes))
         size = G.number_of_nodes()
         while len(unmarked) != 0:
-            print(f"{size - len(unmarked)}/{size}")
+            # print(f"{size - len(unmarked)}/{size}")
             best_cost = float('inf')
             swap_pair = None
             for u in unmarked:

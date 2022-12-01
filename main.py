@@ -35,7 +35,10 @@ def cost(G: nx.graph, vertex: int, new_team: int, weight_score: int = None, team
     if old_team == new_team:
         new_balance_score = balance_score
     else:
-        b_norm = np.sqrt(b_norm ** 2 - b_i ** 2 - b_j ** 2 + (b_i - 1 / V) ** 2 + (b_j + 1 / V) ** 2)
+        inside = b_norm ** 2 - b_i ** 2 - b_j ** 2 + (b_i - 1 / V) ** 2 + (b_j + 1 / V) ** 2
+        if inside < 0:
+            inside = 0
+        b_norm = np.sqrt(inside)
         new_balance_score = math.exp(70 * b_norm)
         for neighbor in G.neighbors(vertex):
             if G.nodes[neighbor]["team"] == new_team:

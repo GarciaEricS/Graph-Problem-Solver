@@ -112,7 +112,70 @@ def spectralSolve(G: nx.Graph, k: int):
     teams = spectral_clustering(adjMatrix, n_clusters=k, eigen_solver="arpack", eigen_tol=1e-7, assign_labels="discretize")
     for u in G.nodes:
         G.nodes[u]["team"] = int(teams[u]) + 1
-    
+
+def greedySolve(G: nx.Graph):
+    for u in G.nodes():
+        swap(G, u, u)
+    G2 = G.copy()
+    A = nx.to_numpy_array(G).astype(float)
+    np.fill_diagonal(A, float("inf"))
+    numTeams = G.number_of_nodes()
+    updates = []
+    teamsToVertices = {i : {i} for i in range(numTeams)}
+    Cw, Ck, Cb = score(G, separated=True)
+    b, b_norm = get_b_and_b_norm(G)
+
+    while numTeams > 1:
+       i, j = np.unravel_index(np.argmin(A), A.shape)
+       i, j = min(i, j), max(i, j)
+       # print(f"{i=}, {j=}, {A[i, j]=}")
+       # print(A)
+       A[i, :] += A[j, :]
+       A[:, i] += A[:, j]
+       A[j, :] = float("inf")
+       A[:, j] = float("inf")
+       Cw, Ck, Cb, b, b_norm = mergeTeamsAndCost(G2, i, j, teamsToVertices, Cw, Ck, Cb, b, b_norm)
+       # print(teamsToVertices)
+       mergedScore = Cw + Ck + Cb
+       updates.append((mergedScore, i, j))
+       numTeams -= 1
+    # print("numTeams:", numTeams)
+    # print("updates:", updates)
+    bestUpdate = np.argmin(np.array(updates)[:, 0])
+    # print("k:", len(updates) - bestUpdate - 1)
+    teamsToVertices = {i : {i} for i in range(G.number_of_nodes())}
+    for index in range(bestUpdate + 1):
+        _, i, j = updates[index]
+        mergeTeams(G, i, j, teamsToVertices)
+
+    teams = list(set(G.nodes[u]["team"] for u in G.nodes()))
+    teams.sort()
+    teamsMap = {team : index + 1 for index, team in enumerate(teams)}
+    for u in G.nodes():
+        team = G.nodes[u]["team"]
+        swap(G, u, teamsMap[team])
+
+    return G
+
+def mergeTeams(G: nx.Graph, i: int, j: int, teamsToVertices):
+    for u in teamsToVertices[j]:
+        swap(G, u, i)
+    teamsToVertices[i].update(teamsToVertices[j])
+    teamsToVertices[j] = None
+
+def mergeTeamsAndCost(G: nx.Graph, i: int, j: int, teamsToVertices, Cw: int, Ck: int, Cb: int, b: np.array, b_norm: float):
+    """
+    for u in teamsToVertices[j]:
+        Cw, Ck, Cb, b, b_norm = cost(G, u, i, Cw, Ck, Cb, b, b_norm)
+        swap(G, u, i)
+    teamsToVertices[i].update(teamsToVertices[j])
+    teamsToVertices[j] = None
+    return Cw, Ck, Cb, b, b_norm
+    """
+    mergeTeams(G, i, j, teamsToVertices)
+    Cw, Ck, Cb = score2(G, separated=True)
+    return Cw, Ck, Cb, None, None
+
 def get_teams_and_counts(G: nx.graph):
     output = [G.nodes[v]['team'] for v in range(G.number_of_nodes())]
     k = np.max(output)
@@ -133,6 +196,18 @@ def get_b_and_b_norm(G: nx.graph):
 def swap(G: nx.graph, v: int, team: int):
     G.nodes[v]["team"] = team
     return G
+
+def score2(G: nx.Graph, separated=False):
+    output = [G.nodes[v]['team'] for v in range(G.number_of_nodes())]
+    teams, counts = np.unique(output, return_counts=True)
+
+    k = len(teams)
+    b = np.linalg.norm((counts / G.number_of_nodes()) - 1 / k, 2)
+    C_w = sum(d for u, v, d in G.edges(data='weight') if output[u] == output[v])
+
+    if separated:
+        return C_w, K_COEFFICIENT * math.exp(K_EXP * k), math.exp(B_EXP * b)
+    return C_w + K_COEFFICIENT * math.exp(K_EXP * k) + math.exp(B_EXP * b)
 
 if __name__ == '__main__':
     main()

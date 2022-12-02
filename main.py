@@ -4,11 +4,13 @@ import multiprocessing as mp
 import os
 
 def main():
-    k_values = range(8, 17)
-    for k in k_values:
-        if not os.path.exists(f"outputs{k}/"):
-            os.makedirs(f"outputs{k}/")
-        run_all_parallel(k)
+    G = read_input("inputs/small6.in")
+    G2 = G.copy()
+    solve(2)(G)
+    spectralSolve(G2, 2)
+    print("solve", score(G))
+    print("spectral", score(G2))
+    print("difference", score(G2) - score(G))
 
 def run_parallel(pair):
     in_file, k = pair
@@ -51,6 +53,15 @@ def cost(G: nx.graph, vertex: int, new_team: int, weight_score: int = None, team
                 new_weight_score += G[vertex][neighbor]["weight"]
             if G.nodes[neighbor]["team"] == old_team:
                 new_weight_score -= G[vertex][neighbor]["weight"]
+
+        swap(G, vertex, new_team)
+        actual_weight, actual_teams, actual_balance = score(G, separated=True)
+        actual_b, actual_b_norm = get_b_and_b_norm(G)
+        assert new_weight_score == actual_weight, f"{new_weight_score=} != {actual_weight=}"
+        assert np.abs(new_balance_score / actual_balance - 1) < 0.01, f"{new_balance_score=} != {actual_balance=}, {b=}"
+        #assert b == actual_b, f"{b=} != {actual_b=}"
+        #assert b_norm == actual_b_norm, f"{b_norm=} != {actual_b_norm=}"
+        swap(G, vertex, old_team)
     return new_weight_score, teams_score, new_balance_score, b, b_norm
 
 def solve(k: int):
@@ -64,26 +75,56 @@ def local_search(G: nx.graph):
     i = 0
     curr_weight_score, curr_teams_score, curr_balance_score = score(G, separated=True)
     curr_b, curr_b_norm = get_b_and_b_norm(G)
+    old_score = curr_weight_score + curr_teams_score + curr_balance_score
     while True:
-        old_score = curr_weight_score + curr_teams_score + curr_balance_score
-        # print(f"{i=}, {old_score=}")
+        print(f"{i=}, {old_score=}")
+        print(score(G))
         unmarked = set(list(G.nodes))
         size = G.number_of_nodes()
+        swaps = []
+        stop = False
         while len(unmarked) != 0:
-            # print(f"{size - len(unmarked)}/{size}")
+            print(f"{size - len(unmarked)}/{size}")
             best_cost = float('inf')
             swap_pair = None
             for u in unmarked:
                 for team in teams:
-                    weight_score, teams_score, balance_score, b, b_norm = cost(G, u, team, curr_weight_score, curr_teams_score, curr_balance_score, curr_b, curr_b_norm)
+                    if G.nodes[u]["team"] == team:
+                        continue
+                    try:
+                        #weight_score, teams_score, balance_score, b, b_norm = cost(G, u, team, curr_weight_score, curr_teams_score, curr_balance_score, curr_b, curr_b_norm)
+                        weight_score, teams_score, balance_score, b, b_norm = cost(G, u, team, curr_weight_score, curr_teams_score, curr_balance_score)
+                    except OverflowError:
+                        continue
                     cost_if_swapped = weight_score + teams_score + balance_score
                     if cost_if_swapped < best_cost:
                         swap_pair = (u, team, weight_score, teams_score, balance_score, b, b_norm)
                         best_cost = cost_if_swapped
-            u, team, curr_weight_score, curr_teams_score, curr_balance_score, curr_b, curr_b_norm = swap_pair
-            swap(G, u, team)
             unmarked.remove(u)
-        if curr_weight_score + curr_teams_score + curr_balance_score == old_score:
+            if swap_pair == None:
+                continue
+            u, team, curr_weight_score, curr_teams_score, curr_balance_score, curr_b, curr_b_norm = swap_pair
+            old_team = G.nodes[u]["team"]
+            swap(G, u, team)
+
+            swaps.append((u, old_team, best_cost))
+        print(swaps)
+        best_score_overall = min(swaps, key=lambda x: x[2])[2]
+        prev_best_overall = best_score_overall
+        if best_score_overall >= old_score:
+            stop = True
+            best_score_overall = -1
+        print("score before swapping bacK", score(G))
+        for u, old_team, curr_cost in swaps[::-1]:
+            if curr_cost == best_score_overall:
+                old_score = curr_cost
+                print("broke:", u, old_team, curr_cost)
+                break
+            print("swapped: ", u, old_team, curr_cost, best_score_overall)
+            swap(G, u, old_team)
+        print(best_score_overall)
+        print(prev_best_overall)
+        if stop or i == 0:
             break
         i += 1
     return G

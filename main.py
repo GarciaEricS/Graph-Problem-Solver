@@ -4,7 +4,7 @@ import multiprocessing as mp
 import os
 
 def main():
-    k_values = range(11, 17)
+    k_values = range(2, 17)
     for k in k_values:
         if not os.path.exists(f"outputs{k}/"):
             os.makedirs(f"outputs{k}/")
@@ -12,8 +12,9 @@ def main():
 
 def solve(k: int):
     def inner(G: nx.Graph):
-        #greedySolve(G)
-        spectralSolve(G, k)
+        randomSolve(G, k)
+        # greedySolve(G)
+        # spectralSolve(G, k)
         local_search(G)
     return inner
 
@@ -30,7 +31,7 @@ def run_all_parallel(k: int):
     threads = mp.cpu_count()
     print("k:", k)
     print("Threads:", threads)
-    with mp.Pool(threads - 3) as p:
+    with mp.Pool(threads - 2) as p:
         p.map(run_parallel, inputs_with_k)
     tar(f"outputs{k}")
 

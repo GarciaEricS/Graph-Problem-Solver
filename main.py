@@ -19,7 +19,10 @@ def solve(k: int):
 
 def run_parallel(pair):
     in_file, k = pair
-    run(solve(k), "inputs/" + in_file, f"outputs{k}/" + in_file[:-len(".in")] + ".out", overwrite=False)
+    out_file = infile[:-len(".in")] + ".out"
+    if os.path.exists(f"outputs{k}/{out_file}"):
+        break
+    run(solve(k), "inputs/" + in_file, f"outputs{k}/" + out_file, overwrite=False)
 
 def run_all_parallel(k: int):
     input_files = [x for x in os.listdir("inputs") if x.endswith('.in')]

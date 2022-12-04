@@ -4,7 +4,7 @@ import multiprocessing as mp
 import os
 
 def main():
-    k_values = range(2, 17)
+    k_values = range(2, 3)
     for k in k_values:
         if not os.path.exists(f"outputs{k}/"):
             os.makedirs(f"outputs{k}/")
@@ -12,10 +12,11 @@ def main():
 
 def solve(k: int):
     def inner(G: nx.Graph):
-        randomSolve(G, k)
-        # greedySolve(G)
+        # randomSolve(G, k)
+        greedySolve(G)
         # spectralSolve(G, k)
-        local_search(G)
+        # local_search(G)
+        simulated_annealing(G)
     return inner
 
 def run_parallel(pair):
@@ -122,6 +123,70 @@ def local_search(G: nx.graph):
                 old_score = score_of_swap
                 break
         i += 1
+    return G
+
+# Randomly generates the next node to consider swapping for simulated annealing.
+# Currently purely random but can add heuristics later maybe
+def generate_next_swap(G: nx.graph, k: int):
+    u = np.random.randint(0, G.number_of_nodes())
+    old_team = G.nodes[u]["team"]
+    while True:
+        swap_team = np.random.randint(0, k)
+        if swap_team + 1 != old_team:
+            return u, old_team, swap_team
+
+def simulated_annealing(G: nx.graph):
+    temperature = 100000                            # Controls probability we take a non-favorable swap
+    temp_factor = 0.95                              # Reduction factor for taking non-favorable swaps                     # 
+    freeze_count = 0                                # How many inner iteration we've been in this state
+    freeze_limit = G.number_of_nodes() * 1/50      # Max limit to how long we stay in a state for outer iteration
+    trials_limit = G.number_of_nodes() * 100        # Max number of trials we make in an inner ieration
+    changes_limit = G.number_of_nodes()         # Max number of changes we make in an inner iteration
+    change_percent = 0.50                           # Ratio of trials to actual changes performed (lower = greater chance of a decreasing swap)
+    k = np.max([G.nodes[v]['team'] for v in range(G.number_of_nodes())])
+    G_intermediate = G.copy()
+    swaps = []
+    while freeze_count < freeze_limit:
+        print("freeze_count:", freeze_count)
+        print("freeze_limit:", freeze_limit)
+        changes, trials = 0,0
+        curr_weight_score, curr_teams_score, curr_balance_score = score(G_intermediate, separated=True)
+        current_score = curr_weight_score + curr_teams_score + curr_balance_score
+        while trials < trials_limit and changes < changes_limit:
+            trials += 1
+            u, old_team, new_team = generate_next_swap(G, k)
+            curr_b, curr_b_norm = get_b_and_b_norm(G_intermediate)
+            changed = False
+            weight_score, teams_score, balance_score, b, b_norm = cost(G_intermediate, u, new_team, curr_weight_score, curr_teams_score, curr_balance_score, curr_b, curr_b_norm)
+            new_score = weight_score + teams_score + balance_score
+            delta = new_score - current_score
+            
+            if delta <= 0:
+                swap(G_intermediate, u, new_team)
+                swaps.append((u, new_team, new_score))
+                changes += 1
+                changed = True
+                current_score = new_score
+                curr_weight_score, curr_teams_score, curr_balance_score = weight_score, teams_score, balance_score
+            
+            else:
+                if np.random.random() <= np.exp(-delta/temperature):
+                    swap(G_intermediate, u, new_team)
+                    swaps.append((u, new_team, new_score))
+                    changes += 1
+                    changed = True
+                    current_score = new_score
+                    curr_weight_score, curr_teams_score, curr_balance_score = weight_score, teams_score, balance_score
+            temperature = temp_factor * temperature
+            if changes/trials < change_percent:
+                freeze_count += 1
+            
+    
+    lowest_of_swaps = min(swaps, key=lambda x: x[2])[2]
+    for u, team, score_of_swap in swaps:
+        swap(G, u, team)
+        if score_of_swap == lowest_of_swaps:
+            break
     return G
 
 def update_b(G: nx.graph, b: np.array, u: int, new_team: int):

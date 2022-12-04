@@ -20,9 +20,10 @@ def solve(k: int):
 
 def run_parallel(pair):
     in_file, k = pair
-    out_file = infile[:-len(".in")] + ".out"
+    out_file = in_file[:-len(".in")] + ".out"
     if os.path.exists(f"outputs{k}/{out_file}"):
-        break
+        print("Skipping file:", in_file)
+        return
     run(solve(k), "inputs/" + in_file, f"outputs{k}/" + out_file, overwrite=False)
 
 def run_all_parallel(k: int):

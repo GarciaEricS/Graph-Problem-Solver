@@ -4,7 +4,7 @@ import multiprocessing as mp
 import os
 
 def main():
-    k_values = range(2, 17)
+    k_values = range(11, 17)
     for k in k_values:
         if not os.path.exists(f"outputs{k}/"):
             os.makedirs(f"outputs{k}/")
@@ -12,8 +12,8 @@ def main():
 
 def solve(k: int):
     def inner(G: nx.Graph):
-        greedySolve(G)
-        #spectralSolve(G, k)
+        #greedySolve(G)
+        spectralSolve(G, k)
         local_search(G)
     return inner
 
@@ -27,7 +27,7 @@ def run_all_parallel(k: int):
     threads = mp.cpu_count()
     print("k:", k)
     print("Threads:", threads)
-    with mp.Pool(threads - 4) as p:
+    with mp.Pool(threads - 3) as p:
         p.map(run_parallel, inputs_with_k)
     tar(f"outputs{k}")
 
@@ -76,12 +76,12 @@ def local_search(G: nx.graph):
     curr_b, curr_b_norm = get_b_and_b_norm(G)
     while True:
         G_intermediate = G.copy()
-        print(f"{i=}, {old_score=}")
+        # print(f"{i=}, {old_score=}")
         unmarked = set(list(G.nodes))
         size = G.number_of_nodes()
         swaps = []
         while len(unmarked) != 0:
-            print(f"{size - len(unmarked)}/{size}")
+            # print(f"{size - len(unmarked)}/{size}")
             best_cost = float('inf')
             swap_pair = None
             curr_b, curr_b_norm = get_b_and_b_norm(G_intermediate)

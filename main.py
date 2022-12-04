@@ -4,17 +4,28 @@ import multiprocessing as mp
 import os
 
 def main():
-    k_values = range(2, 17)
+    k_values = range(13, 19)
     for k in k_values:
         if not os.path.exists(f"outputs{k}/"):
             os.makedirs(f"outputs{k}/")
-        run_all_parallel(k)
+        run_some_inputs_parallel(k)
+
+def run_some_inputs_parallel(k: int):
+    worst = ["medium223", "small13", "medium42",
+            "medium131", "medium202", "small105", "small7"]
+    input_files = [x + ".in" for x in worst]
+    inputs_with_k = tqdm([(f, k) for f in input_files])
+    threads = mp.cpu_count()
+    print("k:", k)
+    print("Threads:", threads)
+    with mp.Pool(threads - 4) as p:
+        p.map(run_parallel, inputs_with_k)
 
 def solve(k: int):
     def inner(G: nx.Graph):
-        randomSolve(G, k)
-        #greedySolve(G)
-        # spectralSolve(G, k)
+        # randomSolve(G, k)
+        # greedySolve(G)
+        spectralSolve(G, k)
         local_search(G)
         # simulated_annealing(G)
     return inner

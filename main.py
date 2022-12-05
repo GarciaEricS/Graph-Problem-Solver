@@ -8,7 +8,7 @@ def main():
     for k in k_values:
         if not os.path.exists(f"outputs{k}/"):
             os.makedirs(f"outputs{k}/")
-        run_some_inputs_parallel(k)
+        run_all_parallel(k)
 
 def run_some_inputs_parallel(k: int):
     worst = ["medium223", "small13", "medium42",
@@ -18,14 +18,14 @@ def run_some_inputs_parallel(k: int):
     threads = mp.cpu_count()
     print("k:", k)
     print("Threads:", threads)
-    with mp.Pool(threads - 4) as p:
+    with mp.Pool(threads - 2) as p:
         p.map(run_parallel, inputs_with_k)
 
 def solve(k: int):
     def inner(G: nx.Graph):
-        # randomSolve(G, k)
+        randomSolve(G, k)
         # greedySolve(G)
-        spectralSolve(G, k)
+        # spectralSolve(G, k)
         local_search(G)
         # simulated_annealing(G)
     return inner
@@ -34,8 +34,9 @@ def run_parallel(pair):
     in_file, k = pair
     out_file = in_file[:-len(".in")] + ".out"
     if os.path.exists(f"outputs{k}/{out_file}"):
-        print("Skipping file:", in_file)
+        # print("Skipping file:", in_file)
         return
+    print("Running", in_file)
     run(solve(k), "inputs/" + in_file, f"outputs{k}/" + out_file, overwrite=False)
 
 def run_all_parallel(k: int):

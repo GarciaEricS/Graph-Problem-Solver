@@ -3,49 +3,57 @@ from sklearn.cluster import spectral_clustering
 import multiprocessing as mp
 import os
 
+HEURISTIC = "SPECTRAL"      # One of {"RANDOM", "SPECTRAL", "GREEDY"}
+LOCAL_SEARCH = "FM"         # One of {"FM", "ANNEALING"}
+
 def main():
-    k_values = range(13, 19)
+    if HEURISTIC == "GREEDY":
+        k_values = [1]
+    elif HEURISTIC == "SPECTRAL" or HEURISTIC == "RANDOM":
+        k_values = range(2, 17)
+    else:
+        raise ValueError(f"Invalid heuristic: '{HEURISTIC}' is not one of " "{'RANDOM', 'SPECTRAL', 'GREEDY'}")
+
     for k in k_values:
         if not os.path.exists(f"outputs{k}/"):
             os.makedirs(f"outputs{k}/")
         run_all_parallel(k)
 
-def run_some_inputs_parallel(k: int):
-    worst = ["medium223", "small13", "medium42",
-            "medium131", "medium202", "small105", "small7"]
-    input_files = [x + ".in" for x in worst]
-    inputs_with_k = tqdm([(f, k) for f in input_files])
-    threads = mp.cpu_count()
-    print("k:", k)
-    print("Threads:", threads)
-    with mp.Pool(threads - 2) as p:
-        p.map(run_parallel, inputs_with_k)
-
 def solve(k: int):
     def inner(G: nx.Graph):
-        randomSolve(G, k)
-        # greedySolve(G)
-        # spectralSolve(G, k)
-        local_search(G)
-        # simulated_annealing(G)
+        if HEURISTIC == "SPECTRAL":
+            spectral_solve(G, k)
+        elif HEURISTIC == "GREEDY":
+            greedy_solve(G)
+        elif HEURISTIC == "RANDOM":
+            random_solve(G, k)
+        else:
+            raise ValueError(f"Invalid heuristic: '{HEURISTIC}' is not one of " "{'RANDOM', 'SPECTRAL', 'GREEDY'}")
+
+        if LOCAL_SEARCH == "FM":
+            fidducia_mattheyses(G)
+        elif LOCAL_SEARCH == "ANNEALING":
+            simulated_annealing(G)
+        else:
+            raise ValueError(f"Invalid local search: '{LOCAL_SEARCH}' is not one of " "{'FM', 'ANNEALING'}")
+
     return inner
 
 def run_parallel(pair):
     in_file, k = pair
     out_file = in_file[:-len(".in")] + ".out"
     if os.path.exists(f"outputs{k}/{out_file}"):
-        # print("Skipping file:", in_file)
+        print("Skipping file:", in_file)
         return
-    print("Running", in_file)
     run(solve(k), "inputs/" + in_file, f"outputs{k}/" + out_file, overwrite=False)
 
 def run_all_parallel(k: int):
     input_files = [x for x in os.listdir("inputs") if x.endswith('.in')]
-    inputs_with_k = tqdm([(f, k) for f in input_files])
+    inputs_with_k = [(f, k) for f in input_files]
     threads = mp.cpu_count()
     print("k:", k)
     print("Threads:", threads)
-    with mp.Pool(threads - 4) as p:
+    with mp.Pool(threads // 2) as p:
         p.map(run_parallel, inputs_with_k)
     tar(f"outputs{k}")
 
@@ -58,9 +66,6 @@ def cost(G: nx.graph, vertex: int, new_team: int, weight_score: int = None, team
     b_i = b[old_team - 1]
     b_j = b[new_team - 1]
     V = G.number_of_nodes()
-    
-    # b[old_team - 1] -= 1 / V
-    # b[new_team - 1] += 1 / V
 
     new_weight_score = weight_score
     if old_team == new_team:
@@ -76,30 +81,21 @@ def cost(G: nx.graph, vertex: int, new_team: int, weight_score: int = None, team
                 new_weight_score += G[vertex][neighbor]["weight"]
             if G.nodes[neighbor]["team"] == old_team:
                 new_weight_score -= G[vertex][neighbor]["weight"]
-        if np.random.random() < 0.001:
-            swap(G, vertex, new_team)
-            actual_weight, actual_teams, actual_balance = score(G, separated=True)
-            # print("real:", actual_balance)
-            # print("calculated:", new_balance_score)
-            swap(G, vertex, old_team)
     return new_weight_score, teams_score, new_balance_score, b, b_norm
 
-def local_search(G: nx.graph):
+def fidducia_mattheyses(G: nx.graph):
     teams = list(map(int, get_teams_and_counts(G)[0]))
     if len(teams) == 1:
         return G
-    i = 0
     curr_weight_score, curr_teams_score, curr_balance_score = score(G, separated=True)
     old_score = curr_weight_score + curr_teams_score + curr_balance_score
     curr_b, curr_b_norm = get_b_and_b_norm(G)
     while True:
         G_intermediate = G.copy()
-        # print(f"{i=}, {old_score=}")
         unmarked = set(list(G.nodes))
         size = G.number_of_nodes()
         swaps = []
         while len(unmarked) != 0:
-            # print(f"{size - len(unmarked)}/{size}")
             best_cost = float('inf')
             swap_pair = None
             curr_b, curr_b_norm = get_b_and_b_norm(G_intermediate)
@@ -134,7 +130,6 @@ def local_search(G: nx.graph):
             if score_of_swap == lowest_of_swaps:
                 old_score = score_of_swap
                 break
-        i += 1
     return G
 
 # Randomly generates the next node to consider swapping for simulated annealing.
@@ -149,18 +144,16 @@ def generate_next_swap(G: nx.graph, k: int):
 
 def simulated_annealing(G: nx.graph):
     temperature = 100000                            # Controls probability we take a non-favorable swap
-    temp_factor = 0.95                              # Reduction factor for taking non-favorable swaps                     # 
+    temp_factor = 0.95                              # Reduction factor for taking non-favorable swaps
     freeze_count = 0                                # How many inner iteration we've been in this state
-    freeze_limit = G.number_of_nodes() * 1/50      # Max limit to how long we stay in a state for outer iteration
-    trials_limit = G.number_of_nodes() * 100        # Max number of trials we make in an inner ieration
-    changes_limit = G.number_of_nodes()         # Max number of changes we make in an inner iteration
+    freeze_limit = G.number_of_nodes() * 1/50       # Max limit to how long we stay in a state for outer iteration
+    trials_limit = G.number_of_nodes() * 100        # Max number of trials we make in an inner iteration
+    changes_limit = G.number_of_nodes()             # Max number of changes we make in an inner iteration
     change_percent = 0.50                           # Ratio of trials to actual changes performed (lower = greater chance of a decreasing swap)
     k = np.max([G.nodes[v]['team'] for v in range(G.number_of_nodes())])
     G_intermediate = G.copy()
     swaps = []
     while freeze_count < freeze_limit:
-        print("freeze_count:", freeze_count)
-        print("freeze_limit:", freeze_limit)
         changes, trials = 0,0
         curr_weight_score, curr_teams_score, curr_balance_score = score(G_intermediate, separated=True)
         current_score = curr_weight_score + curr_teams_score + curr_balance_score
@@ -192,7 +185,6 @@ def simulated_annealing(G: nx.graph):
             temperature = temp_factor * temperature
             if changes/trials < change_percent:
                 freeze_count += 1
-            
     
     lowest_of_swaps = min(swaps, key=lambda x: x[2])[2]
     for u, team, score_of_swap in swaps:
@@ -201,29 +193,12 @@ def simulated_annealing(G: nx.graph):
             break
     return G
 
-def update_b(G: nx.graph, b: np.array, u: int, new_team: int):
-    old_team = G.nodes[u]["team"]
-    V = G.number_of_nodes()
-    b[old_team - 1] -= 1 / V
-    b[new_team - 1] += 1 / V
-
-def solve_naive(G: nx.graph):
-    num_nodes = len(G.nodes)
-
-    # Partition first half to team 1
-    for u in range(num_nodes//2):
-        G.nodes[u]['team'] = 1
-
-    # Partition first half to team 2
-    for v in range(num_nodes//2, num_nodes):
-        G.nodes[v]['team'] = 2
-
-def randomSolve(G: nx.Graph, k: int):
+def random_solve(G: nx.Graph, k: int):
     for u in G.nodes:
         team = np.random.randint(1, k)
         G.nodes[u]["team"] = team
     
-def spectralSolve(G: nx.Graph, k: int):
+def spectral_solve(G: nx.Graph, k: int):
     adjMatrix = nx.to_numpy_array(G)
     beta = 10
     eps = 1e-6
@@ -232,7 +207,7 @@ def spectralSolve(G: nx.Graph, k: int):
     for u in G.nodes:
         G.nodes[u]["team"] = int(teams[u]) + 1
 
-def greedySolve(G: nx.Graph):
+def greedy_solve(G: nx.Graph):
     for u in G.nodes():
         swap(G, u, u)
     G2 = G.copy()
@@ -247,25 +222,20 @@ def greedySolve(G: nx.Graph):
     while numTeams > 1:
        i, j = np.unravel_index(np.argmin(A), A.shape)
        i, j = min(i, j), max(i, j)
-       # print(f"{i=}, {j=}, {A[i, j]=}")
-       # print(A)
        A[i, :] += A[j, :]
        A[:, i] += A[:, j]
        A[j, :] = float("inf")
        A[:, j] = float("inf")
-       Cw, Ck, Cb, b, b_norm = mergeTeamsAndCost(G2, i, j, teamsToVertices, Cw, Ck, Cb, b, b_norm)
-       # print(teamsToVertices)
+       Cw, Ck, Cb, b, b_norm = merge_teams_and_cost(G2, i, j, teamsToVertices, Cw, Ck, Cb, b, b_norm)
        mergedScore = Cw + Ck + Cb
        updates.append((mergedScore, i, j))
        numTeams -= 1
-    # print("numTeams:", numTeams)
-    # print("updates:", updates)
+
     bestUpdate = np.argmin(np.array(updates)[:, 0])
-    # print("k:", len(updates) - bestUpdate - 1)
     teamsToVertices = {i : {i} for i in range(G.number_of_nodes())}
     for index in range(bestUpdate + 1):
         _, i, j = updates[index]
-        mergeTeams(G, i, j, teamsToVertices)
+        merge_teams(G, i, j, teamsToVertices)
 
     teams = list(set(G.nodes[u]["team"] for u in G.nodes()))
     teams.sort()
@@ -276,25 +246,28 @@ def greedySolve(G: nx.Graph):
 
     return G
 
-def mergeTeams(G: nx.Graph, i: int, j: int, teamsToVertices):
+def merge_teams(G: nx.Graph, i: int, j: int, teamsToVertices):
     for u in teamsToVertices[j]:
         swap(G, u, i)
     teamsToVertices[i].update(teamsToVertices[j])
     teamsToVertices[j] = None
 
-def mergeTeamsAndCost(G: nx.Graph, i: int, j: int, teamsToVertices, Cw: int, Ck: int, Cb: int, b: np.array, b_norm: float):
-    """
-    for u in teamsToVertices[j]:
-        Cw, Ck, Cb, b, b_norm = cost(G, u, i, Cw, Ck, Cb, b, b_norm)
-        swap(G, u, i)
-    teamsToVertices[i].update(teamsToVertices[j])
-    teamsToVertices[j] = None
-    return Cw, Ck, Cb, b, b_norm
-    """
-    mergeTeams(G, i, j, teamsToVertices)
+def merge_teams_and_cost(G: nx.Graph, i: int, j: int, teamsToVertices, Cw: int, Ck: int, Cb: int, b: np.array, b_norm: float):
+    def score2(G: nx.Graph, separated=False):
+        output = [G.nodes[v]['team'] for v in range(G.number_of_nodes())]
+        teams, counts = np.unique(output, return_counts=True)
+
+        k = len(teams)
+        b = np.linalg.norm((counts / G.number_of_nodes()) - 1 / k, 2)
+        C_w = sum(d for u, v, d in G.edges(data='weight') if output[u] == output[v])
+
+        if separated:
+            return C_w, K_COEFFICIENT * math.exp(K_EXP * k), math.exp(B_EXP * b)
+        return C_w + K_COEFFICIENT * math.exp(K_EXP * k) + math.exp(B_EXP * b)
+
+    merge_teams(G, i, j, teamsToVertices)
     Cw, Ck, Cb = score2(G, separated=True)
     return Cw, Ck, Cb, None, None
-    
 
 def get_teams_and_counts(G: nx.graph):
     output = [G.nodes[v]['team'] for v in range(G.number_of_nodes())]
@@ -317,18 +290,6 @@ def get_b_and_b_norm(G: nx.graph):
 def swap(G: nx.graph, v: int, team: int):
     G.nodes[v]["team"] = team
     return G
-
-def score2(G: nx.Graph, separated=False):
-    output = [G.nodes[v]['team'] for v in range(G.number_of_nodes())]
-    teams, counts = np.unique(output, return_counts=True)
-
-    k = len(teams)
-    b = np.linalg.norm((counts / G.number_of_nodes()) - 1 / k, 2)
-    C_w = sum(d for u, v, d in G.edges(data='weight') if output[u] == output[v])
-
-    if separated:
-        return C_w, K_COEFFICIENT * math.exp(K_EXP * k), math.exp(B_EXP * b)
-    return C_w + K_COEFFICIENT * math.exp(K_EXP * k) + math.exp(B_EXP * b)
 
 if __name__ == '__main__':
     main()

@@ -4,6 +4,8 @@ This is the repository for the Fall 2022 CS170 final project for the team TheKar
 The goal is to partition a graph into disjoint sets in order to minimize a cost function that involves the weights between vertices in the same set, the total number of sets, and the relative balance of vertices in each set. If you want to learn more about this project, you can look at the spec here: [Project Spec](https://cs170.org/assets/pdf/project.pdf).
 
 ## How to Generate Outputs
+Before proceeding, ensure that you have downloaded the inputs from this link: [Inputs](https://cs170.org/assets/misc/inputs.zip). Make sure that you unzip the `assets_misc_inputs.zip` file and place the resulting `inputs` directory on the same level as `main.py`.
+
 First, in `main.py` choose the initial solution heuristic and local search algorithm by changing the global variables at the top of the file.
 
 You can choose one of the following options for the initial solution heuristic:
